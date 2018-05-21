@@ -33,30 +33,36 @@ def RequestParser(Post):
   PostInfo['AnswerNum']=Header[4]
   PostInfo['AuthorityNum']=Header[5]
   PostInfo['AppendedNum']=Header[6]
-  if PostInfo['Options'] & 0b10000000 == 0:
-    # Parse Question
-    url=[]
-    for i in range(0,PostInfo['QuestionNum']):
-      Domainname=''
-      while True:
-        length=Question[0]
-        Domainname+=str(Question[1:length+1],encoding='utf-8')
-        if length != 0:
-          Domainname+='.'
-          Question=Question[length+1:]
-        else:
-          Question=Question[1:]
-          break
-      url.insert(0,Domainname)
-      # OtherInfo=struct.unpack("!HH",Question[:4])
-      # QTYPE=OtherInfo[0]
-      # QCLASS=OtherInfo[1]
-      Question=Question[4:]
-    PostInfo['url']=url
+  PostInfo['QTYPE']=[]
+  PostInfo['QCLASS']=[]
+  try:
+    if PostInfo['Options'] & 0b10000000 == 0:
+      # Parse Question
+      url=[]
+      for i in range(0,PostInfo['QuestionNum']):
+        Domainname=''
+        while True:
+          length=Question[0]
+          Domainname+=str(Question[1:length+1],encoding='utf-8')
+          if length != 0:
+            Domainname+='.'
+            Question=Question[length+1:]
+          else:
+            Question=Question[1:]
+            break
+        url.append(Domainname)
+        OtherInfo=struct.unpack("!HH",Question[:4])
+        PostInfo['QTYPE'].append(OtherInfo[0])
+        PostInfo['QCLASS'].append(OtherInfo[1])
+        Question=Question[4:]
+      PostInfo['url']=url
+      return PostInfo
+    else:
+      print("Error : This post is not a request post.")
+  except:
+    print('Error : Something is wrong while parsing this post. \
+    Please contact with the programmer to solve this.')
     return PostInfo
-  else:
-    print("Error : This is not request")
-    exit(1)
 
 def ParseOffset(Post,ptr):
   Name=''
@@ -94,40 +100,47 @@ def AnswerParser(Post):
   PostInfo['AppendedNum']=Header[6]
   PostInfo['Answers']=[]
 
-  if PostInfo['Options'] & 0b10000000 == 0b10000000:
-    # Parse Answer
-    for i in range(0,PostInfo['QuestionNum']):
-      # Skip Questions
-      while True:
-        len=Post[ptr]
-        ptr+=len+1
-        if len==0:
-          break
-      # Skip QTYPE and QCLASS
-      ptr+=4
-    for i in range(0,PostInfo['AnswerNum']):
-      DomainName=ParseOffset(Post,ptr)
-      ptr+=2
-      TYPEandCLASS=struct.unpack('!HH',Post[ptr:ptr+4])
-      ptr+=4
-      # TIMETOLIVE=struct.unpack('!I',Post[ptr:ptr+4])
-      ptr+=4
-      LENGTH=struct.unpack('!H',Post[ptr:ptr+2])
-      ptr+=2
+  try:
+    if PostInfo['Options'] & 0b10000000 == 0b10000000:
+      # Parse Answer
+      for i in range(0,PostInfo['QuestionNum']):
+        # Skip Questions
+        while True:
+          len=Post[ptr]
+          ptr+=len+1
+          if len==0:
+            break
+        # Skip QTYPE and QCLASS
+        ptr+=4
+      for i in range(0,PostInfo['AnswerNum']):
+        DomainName=ParseOffset(Post,ptr)
+        ptr+=2
+        TYPEandCLASS=struct.unpack('!HH',Post[ptr:ptr+4])
+        ptr+=4
+        # TIMETOLIVE=struct.unpack('!I',Post[ptr:ptr+4])
+        ptr+=4
+        LENGTH=struct.unpack('!H',Post[ptr:ptr+2])
+        ptr+=2
 
-      TYPE=TYPEandCLASS[0]
-      # if TYPE == DNS_A:
-      # That means the answer is the IP address of the domainname.
-      if TYPE == 1:
-        if LENGTH[0] == 4:
-          RAWIP=Post[ptr:ptr+LENGTH[0]]
-          IP=socket.inet_ntoa(RAWIP)
-          PostInfo['Answers']+={"Domain Name:",DomainName,"IP address:",IP}
-      # if TYPE == DNS_CLASS:
-      # That means the answer is the alias name of the domainname.
-      elif TYPE == 5:
-        ALIAS=ParseOffset(Post,ptr)
-        PostInfo['Answers']+={"Domain Name:",DomainName,"Alias Name:",ALIAS}
-      ptr+=LENGTH[0]
-  return PostInfo
+        TYPE=TYPEandCLASS[0]
+        # if TYPE == DNS_A:
+        # That means the answer is the IP address of the domainname.
+        if TYPE == 1:
+          if LENGTH[0] == 4:
+            RAWIP=Post[ptr:ptr+LENGTH[0]]
+            IP=socket.inet_ntoa(RAWIP)
+            PostInfo['Answers']+={"Domain Name:",DomainName,"IP address:",IP}
+        # if TYPE == DNS_CLASS:
+        # That means the answer is the alias name of the domainname.
+        elif TYPE == 5:
+          ALIAS=ParseOffset(Post,ptr)
+          PostInfo['Answers']+={"Domain Name:",DomainName,"Alias Name:",ALIAS}
+        ptr+=LENGTH[0]
+    else:
+      print('Error : this post is not a answer post.')
+    return PostInfo
+  except:
+    print('Error : Something is wrong while parsing this post. \
+    Please contact with the programmer to solve this.')
+    return PostInfo
 
